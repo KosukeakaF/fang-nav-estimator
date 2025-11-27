@@ -1,0 +1,146 @@
+# estimate.py (GitHub Actions版)
+
+import yfinance as yf
+import pandas as pd
+import requests
+import json
+from io import StringIO
+from datetime import datetime, timedelta
+import traceback
+import os
+
+pd.set_option('display.float_format', '{:,.2f}'.format)
+
+# ======================================
+# 1. Daiwa CSV
+# ======================================
+def fetch_daiwa_csv_last_row(fund_code: str) -> pd.Series:
+    url = f"https://www.daiwa-am.co.jp/funds/detail/csv_out.php?code={fund_code}&type=1"
+    res = requests.get(url)
+    df = pd.read_csv(StringIO(res.content.decode("shift_jis")))
+    return df.iloc[-1]
+
+# ======================================
+# 2. Weights
+# ======================================
+WEIGHTS = {
+    "AAPL": 0.1137,
+    "AMZN": 0.1081,
+    "NFLX": 0.1014,
+    "NVDA": 0.1004,
+    "META": 0.1010,
+    "MSFT": 0.1056,
+    "TSLA": 0.0955,
+    "GOOGL": 0.1063,
+    "GOOG": 0.0783,
+    "SNOW": 0.0897
+}
+TICKERS = list(WEIGHTS.keys())
+
+# ======================================
+# 3. Market Data
+# ======================================
+def get_prices_and_fx():
+    end = datetime.now()
+    start = end - timedelta(days=7)
+
+    data = yf.download(TICKERS + ["USDJPY=X"], start=start, end=end, auto_adjust=False)
+
+    prices = data["Close"][TICKERS].ffill()
+    fx = data["Close"]["USDJPY=X"].ffill()
+
+    return prices, fx
+
+# ======================================
+# 4. Estimate Shares
+# ======================================
+def estimate_shares(previous_nav, previous_base_price, prev_prices, prev_fx):
+    units = previous_nav / previous_base_price
+    shares = {}
+
+    for ticker, weight in WEIGHTS.items():
+        usd_value = (previous_nav * weight) / prev_fx
+        shares[ticker] = usd_value / prev_prices[ticker]
+
+    return shares, units
+
+# ======================================
+# 5. NAV Estimation
+# ======================================
+def calculate_today_nav():
+    last_row = fetch_daiwa_csv_last_row("3346")
+    previous_base_price = float(last_row["基準価額"])
+    previous_nav = float(last_row["純資産総額"])
+
+    prices, fx = get_prices_and_fx()
+
+    prev_prices = prices.iloc[-2]
+    last_prices = prices.iloc[-1]
+
+    prev_fx = float(fx.iloc[-2])
+    last_fx = float(fx.iloc[-1])
+
+    shares, units = estimate_shares(previous_nav, previous_base_price, prev_prices, prev_fx)
+
+    total_usd = sum(shares[t] * last_prices[t] for t in TICKERS)
+    total_jpy = total_usd * last_fx
+
+    estimated_base_price = total_jpy / units
+
+    msg = []
+    msg.append("📈【FANG+ 推定基準価額】")
+    msg.append(f"前日基準価額: {previous_base_price:,.2f} 円")
+    msg.append(f"推定基準価額: {estimated_base_price:,.2f} 円")
+    diff = estimated_base_price - previous_base_price
+    msg.append(f"前日比: {diff:,.2f} 円 ({(diff/previous_base_price)*100:.2f}%)")
+    msg.append("")
+    msg.append(f"USDJPY: {prev_fx:.2f} → {last_fx:.2f}")
+
+    msg.append("\n保有株数推定：")
+    for t in TICKERS:
+        msg.append(f"{t}: {shares[t]:,.1f}株")
+
+    return "\n".join(msg)
+
+# ======================================
+# 6. LINE Messaging API
+# ======================================
+def send_line_message(text: str):
+
+    token = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
+    user_id = os.getenv("LINE_TO_USER_ID")
+
+    if not token or not user_id:
+        print("❌ LINE の環境変数が設定されていません")
+        return
+
+    url = "https://api.line.me/v2/bot/message/push"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {token}"
+    }
+
+    body = {
+        "to": user_id,
+        "messages": [{"type": "text", "text": text}]
+    }
+
+    r = requests.post(url, headers=headers, data=json.dumps(body))
+    print("LINE API レスポンス:", r.status_code, r.text)
+
+# ======================================
+# 7. Main
+# ======================================
+def main():
+    try:
+        msg = calculate_today_nav()
+        print(msg)
+        send_line_message(msg)
+
+    except Exception as e:
+        error_text = "⚠️ NAV推定でエラー\n\n" + traceback.format_exc()
+        print(error_text)
+        send_line_message(error_text)
+
+if __name__ == "__main__":
+    main()
