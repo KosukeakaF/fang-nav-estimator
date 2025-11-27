@@ -2,7 +2,7 @@ name: Daily FANG+ NAV Estimate
 
 on:
   schedule:
-    - cron: '0 14 * * *'  # UTCの12時 = 日本時間21時
+    - cron: '0 1 * * *'  # UTCの12時 = 日本時間21時
   workflow_dispatch:      # 手動実行もできるように
 
 jobs:
