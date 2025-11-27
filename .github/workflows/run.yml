@@ -1,22 +1,24 @@
-name: FANG+ NAV Estimation
+name: Run FANG+ NAV Estimator
 
 on:
   schedule:
-    # 毎日21時（日本時間）に実行
-    - cron: '0 12 * * *' # UTCの12時 = JSTの21時
-  workflow_dispatch: # 手動トリガーも可能
+    # 毎日21時（JST）に実行（UTCは-9時間なので12時に設定）
+    - cron: '0 12 * * *'
+  workflow_dispatch:
 
 jobs:
-  estimate:
+  build:
     runs-on: ubuntu-latest
+
     env:
       LINE_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}
       LINE_TO_USER_ID: ${{ secrets.LINE_TO_USER_ID }}
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Set up Python
+      - name: Set up Python 3.10
         uses: actions/setup-python@v4
         with:
           python-version: 3.10
@@ -26,5 +28,5 @@ jobs:
           python -m pip install --upgrade pip
           pip install yfinance pandas requests
 
-      - name: Run estimation script
+      - name: Run estimator script
         run: python estimate.py
