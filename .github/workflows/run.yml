@@ -28,7 +28,7 @@ jobs:
           pip install yfinance requests pandas
 
       - name: スクリプト実行
-        run: python estimate.py
+        run: python main.py
 
 
 
