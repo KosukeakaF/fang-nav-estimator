@@ -1,4 +1,4 @@
-# estimate.py (GitHub Actions版)
+# estimate.py (GitHub Actions版・最新構成銘柄反映)
 
 import yfinance as yf
 import pandas as pd
@@ -21,20 +21,21 @@ def fetch_daiwa_csv_last_row(fund_code: str) -> pd.Series:
     return df.iloc[-1]
 
 # ======================================
-# 2. Weights
+# 2. 最新 Weights（みんかぶ構成比率を使用）
 # ======================================
 WEIGHTS = {
-    "AAPL": 0.1137,
-    "AMZN": 0.1081,
-    "NFLX": 0.1014,
-    "NVDA": 0.1004,
-    "META": 0.1010,
-    "MSFT": 0.1056,
-    "TSLA": 0.0955,
-    "GOOGL": 0.1063,
-    "GOOG": 0.0783,
-    "SNOW": 0.0897
+    "CRWD": 0.1110,   # クラウドストライク
+    "NVDA": 0.1100,   # エヌビディア
+    "AAPL": 0.1050,   # アップル
+    "GOOGL": 0.1040,  # アルファベットA
+    "AVGO": 0.1000,   # ブロードコム
+    "MSFT": 0.0950,   # マイクロソフト
+    "NOW": 0.0910,    # サービスナウ
+    "AMZN": 0.0890,   # アマゾン
+    "NFLX": 0.0820,   # ネットフリックス
+    "META": 0.0790    # メタ
 }
+
 TICKERS = list(WEIGHTS.keys())
 
 # ======================================
@@ -88,7 +89,7 @@ def calculate_today_nav():
     estimated_base_price = total_jpy / units
 
     msg = []
-    msg.append("📈【FANG+ 推定基準価額】")
+    msg.append("📈【FANG+ 推定基準価額（最新構成銘柄版）】")
     msg.append(f"前日基準価額: {previous_base_price:,.2f} 円")
     msg.append(f"推定基準価額: {estimated_base_price:,.2f} 円")
     diff = estimated_base_price - previous_base_price
